@@ -9,6 +9,7 @@ import uuid
 import openai
 import tiktoken
 from blingfire import text_to_sentences
+from time import sleep
 from sklearn.metrics.pairwise import cosine_similarity
 from tqdm.auto import tqdm
 tqdm.pandas()
@@ -17,8 +18,7 @@ import logging
 # initialize global variables and logging
 PATH_TO_DATABASE = os.getcwd() + '/documents'
 CHUNK_SIZE = 5 # number of sentences per paragraph
-CHUNK_OVERLAP = 1 # number of sentences to overlap between paragraphs 
-
+CHUNK_OVERLAP = 1 # number of sentences to overlap between paragraphs
 EMBEDDING_MODEL = "text-embedding-ada-002"
 EMBEDDING_TOKEN_LIMIT = 8191-2 # account for the 2 tokens added by the model
 EMBEDDING_LENGTH = 1536 # length of the embedding vector
@@ -34,6 +34,8 @@ with open(os.getcwd() + '/secrets/keys.json') as f:
     keys = json.load(f)
 openai.api_key = keys['OPENAI_API_KEY']
 enc = tiktoken.encoding_for_model(EMBEDDING_MODEL)
+
+### FUNCTIONS ###
 
 def get_paths():
     """
@@ -119,20 +121,25 @@ def format_for_embedding(df):
     df['num_tokens'] = df['text'].apply(lambda x: len(enc.encode(x)))
     return df
 
-def get_embedding(text):
-    text = text.replace("\n", " ")
-    try:
-        res = openai.Embedding.create(input = [text], model=EMBEDDING_MODEL)['data'][0]['embedding']
-    except (OpenAIError, KeyError):
-        res = np.zeros(EMBEDDING_LENGTH)
-        print("ERROR: Unable to embed text: ", text) # TODO: propagate error and handle it
-        logging.error(f'Unable to embed text: {text}')
-    return res
-
 def enrich_texts(df, col_name):
     df = df.copy()
     df['enriched_text'] = df['doc_name'] + ': ' + df[col_name]
     return df
+
+def get_embedding(text):
+    text = text.replace("\n", " ")
+    try:
+        res = openai.Embedding.create(input = [text], model=EMBEDDING_MODEL)['data'][0]['embedding']
+    except openai.error.OpenAIError as e:
+        # retry once
+        sleep(5)
+        try:
+            res = openai.Embedding.create(input = [text], model=EMBEDDING_MODEL)['data'][0]['embedding']
+        except openai.error.OpenAIError as e:
+            res = np.zeros(EMBEDDING_LENGTH)
+            print("ERROR: Unable to embed text:", text)
+            logging.error(f'Unable to embed text: {text}. Error: {json.dumps(e)}')
+    return res
 
 def embed_documents(df, col_name):
     df = df.copy()
@@ -141,25 +148,25 @@ def embed_documents(df, col_name):
 
 def process_documents():
     """
-    Main function to ingest, embed, and store document data and embeddings.
+    Function to ingest, embed, and store document data and embeddings.
     """
-    logging.debug('process_documents(1/4): Attempting to process document database')
+    logging.info('process_documents(1/4): Attempting to process document database')
     docs = read_documents()
     df = pd.DataFrame(docs)
     costs = calculate_cost(df)
     print('documents loaded into memory')
     print(f'details: {costs}')
-    logging.debug(f'process_documents(2/4): Documents loaded into memory. Details: {costs}')
+    logging.info(f'process_documents(2/4): Documents loaded into memory. Details: {costs}')
 
     print('embedding documents...')
     df = format_for_embedding(df)
     df = enrich_texts(df, 'text')
     df = embed_documents(df, 'enriched_text') # Note: this embeds the enriched text
-    logging.debug('process_documents(3/4): Embedding complete')
+    logging.info('process_documents(3/4): Embedding complete')
     # store df as pickle in data directory
     df.to_pickle(os.getcwd() + '/data/embeddings.pkl')
     print('embeddings dataframe saved to data/embeddings.pkl')
-    logging.debug('process_documents(4/4): Successfully processed document database, data saved to data/embeddings.pkl')
+    logging.info('process_documents(4/4): Successfully processed document database, data saved to data/embeddings.pkl')
     return None
 
 def nearest_neighbors(query_embedding, df, col_name, token_limit=1500, similarity_threshold=0.75, k=10):
@@ -186,25 +193,24 @@ def nearest_neighbors(query_embedding, df, col_name, token_limit=1500, similarit
 def engineer_prompt(prompt, context=None):
     """Converts a prompt into openai's message list format."""
 
-    query =  f"""Use the below KNOWLEDGE BASE to answer the subsequent question. If KNOWLEDGE BASE is not relevant to the QUESTION, reply with only three words: "I don't know.".
+    query =  f"""Use the below \"\"\"documents\"\"\" to answer the subsequent question. If \"\"\"documents\"\"\" is not relevant to the QUESTION, reply with only three words: "I don't know".
 
-KNOWLEDGE BASE:
+\"\"\"documents\"\"\":
 \"\"\"
 {context}
 \"\"\"
 
 QUESTION: {prompt}"""
 
-    messages = [{"role": "system", "content": "You answer questions using the KNOWLEDGE BASE."},
+    messages = [{"role": "system", "content": "You answer questions using the \"\"\"documents\"\"\"."},
                 {"role": "user", "content": query}]
     return messages
 
 def get_answer(input, df):
     """Takes a user input and returns the answer from the knowledge base."""
-    logging.info(f'get_answer(1/2): received input: {input}')
+    logging.info(f'get_answer(1/3): received input: {input}')
     input_embedding = get_embedding(input)
     results, constraint = nearest_neighbors(input_embedding, df, 'embedding')
-
     # if results dataframe is empty, return None
     if results.empty:
         logging.info(f'get_answer(2/2): No results due to constraint:{constraint}')
@@ -212,41 +218,66 @@ def get_answer(input, df):
         return None, constraint
     else:
         context = results['enriched_text'].str.cat(sep='\n')
-    
+        logging.info(f'get_answer(2/3): context retrieved:{context}')
     # get answer from model with engineered prompt
     messages = engineer_prompt(input, context)
     try:
         answer = openai.ChatCompletion.create(model=ACTIVE_MODEL, messages=messages, temperature=0)
-    except(OpenAIError):
-        error_code = answer['error']['code']
-        print(f'Please try again later. Error code: {error_code} from openai')
-        logging.info(f'get_answer(2/2): Unsuccessful. Error code: {error_code} from openai.ChatCompletion.create()')
+    except openai.error.OpenAIError as e:
+        error_code = e.response['error']['code']
+        print(f'Please try again later. Error code: {error_code} from OpenAI')
+        logging.info(f'get_answer: Unsuccessful. Error code: {error_code} from OpenAI.ChatCompletion.create()')
         return None, constraint
-    
-    logging.info(f'get_answer(2/2): Successful. Details: {json.dumps(answer)}')
+    logging.info(f'get_answer(2/3): Successful. Details: {json.dumps(answer)}')
     return answer, constraint
 
-def main():
+def reprocess_decision():
+    """Asks the user if they want to reprocess the document database."""
+    user_input = input('Would you like to process the document in the database? (y/n): ')
+    while user_input not in ['y', 'n']:
+        user_input = input('Please enter "y" or "n": ')
+    if user_input == 'y':
+        process_documents()
+    else:
+        return False
+    return True
 
-    # load embeddings into memory
+### MAIN ###
+
+def main():
+    print('BABEL IS STARTING...')
+    # load documents and embeddings into memory
     if os.path.exists(os.getcwd() + '/data/embeddings.pkl'):
         try: 
             df = pd.read_pickle(os.getcwd() + '/data/embeddings.pkl')
-            print('embeddings.pkl loaded into memory')
-        except(pickle.UnpicklingError):
-            print('embeddings.pkl exists, but could not be loaded into memory')
-            logging.critical('embeddings.pkl exists, but could not be loaded into memory')
-        costs = calculate_cost(pd.DataFrame(read_documents()))
-        print(f'to refresh the database, reprocessing all documents would cost: {costs["est_cost_usd"]} USD')
-    else:
-        print('embeddings.pkl does not exist, processing documents...')
-        process_documents()
-
-    # Q & A loop
-    user_input = "How does one drink a dinosaur?"
-    answer,_ = get_answer(user_input, df)
-    if answer:
-        print(answer.choices[0]['message']['content'])
+            print('READY - document and embeddings loaded into memory')
+        except (pickle.UnpicklingError, FileNotFoundError) as e:
+            print('ERROR: Unable to load embeddings.pkl')
+            logging.error(f'Unable to load embeddings.pkl. Error: {str(e)}')
+    
+    # create a loop to continue asking for user input (query, reprocess, or quit)
+    while True:
+        user_input = input('SELECT ACTION: (1) Query, (2) Reprocess documents, (3) Quit: ')
+        if user_input == '1':
+            user_input = input('Enter a question: ')
+            answer, _ = get_answer(user_input, df)
+            if answer:
+                print(answer.choices[0]['message']['content'])
+        elif user_input == '2':
+            costs = calculate_cost(pd.DataFrame(read_documents()))
+            print(f'Reprocess documents - reprocessing all documents would cost: {costs["est_cost_usd"]} USD')
+            user_input = input('Would you like to continue? (y/n): ')
+            while user_input not in ['y', 'n']:
+                user_input = input('Please enter "y" or "n": ')
+            if user_input == 'y':
+                process_documents()
+                df = pd.read_pickle(os.getcwd() + '/data/embeddings.pkl')
+                print('READY - document and embeddings loaded into memory')
+        elif user_input == '3':
+            print('BYE...')
+            break
+        else:
+            print('Please select a valid action (1, 2, or 3)')
 
 if __name__ == '__main__':
     main()
