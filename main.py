@@ -229,17 +229,6 @@ def get_answer(input, df):
     logging.info(f'get_answer(2/3): Successful. Details: {json.dumps(answer)}')
     return answer, constraint
 
-def reprocess_decision():
-    """Asks the user if they want to reprocess the document database."""
-    user_input = input('Would you like to process the document in the database? (y/n): ')
-    while user_input not in ['y', 'n']:
-        user_input = input('Please enter "y" or "n": ')
-    if user_input == 'y':
-        process_documents()
-    else:
-        return False
-    return True
-
 ### MAIN ###
 
 def main():
