@@ -3,3 +3,4 @@ archive/
 data/embeddings.pkl
 logs/babel.log
 secrets/keys.json
+__pycache__/
