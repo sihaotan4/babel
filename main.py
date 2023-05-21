@@ -4,6 +4,7 @@ import glob
 import os
 import json
 import uuid
+import threading
 import openai
 import tiktoken
 from blingfire import text_to_sentences
@@ -211,7 +212,7 @@ def get_answer(input, df):
     results, constraint = nearest_neighbors(input_embedding, df, 'embedding')
     # if results dataframe is empty, return None
     if results.empty:
-        logging.info(f'get_answer(2/2): No results due to constraint:{constraint}')
+        logging.info(f'get_answer(2/3): No results due to constraint:{constraint}')
         print(f'No results found. Please try again with a different input.')
         return None, constraint
     else:
@@ -224,10 +225,26 @@ def get_answer(input, df):
     except openai.error.OpenAIError as e:
         error_code = e.response['error']['code']
         print(f'Please try again later. Error code: {error_code} from OpenAI')
-        logging.info(f'get_answer: Unsuccessful. Error code: {error_code} from OpenAI.ChatCompletion.create()')
+        logging.info(f'get_answer(3/3): Unsuccessful. Error code: {error_code} from OpenAI.ChatCompletion.create()')
         return None, constraint
-    logging.info(f'get_answer(2/3): Successful. Details: {json.dumps(answer)}')
+    logging.info(f'get_answer(3/3): Successful. Details: {json.dumps(answer)}')
     return answer, constraint
+
+def print_spinner():
+    global spinning
+    spinning = True
+    t = threading.Thread(target=spin)
+    t.start()
+
+def spin():
+    while spinning:
+        for char in '|/-\\':
+            print(f"\r{char} ", end='')
+            sleep(0.1)
+
+def stop_spinner():
+    global spinning
+    spinning = False
 
 ### MAIN ###
 
@@ -247,9 +264,12 @@ def main():
         user_input = input('SELECT ACTION: (1) Query, (2) Reprocess documents, (3) Quit: ')
         if user_input == '1':
             user_input = input('Enter a question: ')
+            print_spinner()
             answer, _ = get_answer(user_input, df)
+            stop_spinner()
+            sleep(0.2)
             if answer:
-                print(answer.choices[0]['message']['content'])
+                print(f"\n{answer.choices[0]['message']['content']}")
         elif user_input == '2':
             costs = calculate_cost(pd.DataFrame(read_documents()))
             print(f'Reprocess documents - reprocessing all documents would cost: {costs["est_cost_usd"]} USD')
