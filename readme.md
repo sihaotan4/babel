@@ -14,6 +14,14 @@ Babel only has two actions:
 1. Query - Ask a question and get an answer from the content of the documents.
 2. Reprocess documents - Re-process the documents to update the embeddings if the content has changed.
 
+```
+BABEL IS STARTING...
+READY - document and embeddings loaded into memory
+SELECT ACTION: (1) Query, (2) Reprocess documents, (3) Quit: 1
+Enter a question: I'm allergic to crab what dishes should I avoid
+You should avoid Crab bee hoon, Chilli crab, Black pepper crab, Crab in Padang sauce, and Oyster sauce crab.
+```
+
 # Setup
 
 Pre-requisites:
