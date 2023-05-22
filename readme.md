@@ -33,7 +33,7 @@ Pre-requisites:
 - Your own documents in txt format (store these in `documents/`)
 
 Steps:
-
+Clone this repo.
 Create a virtual environment and install requirements. If there are any issues with the installation, please update pip and try again.
 ```
 python -m venv venv_babel
