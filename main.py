@@ -214,9 +214,12 @@ def get_answer(input, df):
     if results.empty:
         logging.info(f'get_answer(2/3): No results due to constraint:{constraint}')
         print(f'No results found. Please try again with a different input.')
-        return None, constraint
+        return None, None, constraint
     else:
         context = results['enriched_text'].str.cat(sep='\n')
+        citations = ''
+        for row in results.itertuples():
+            citations += f'{row.doc_name} - {row.id}\n'
         logging.info(f'get_answer(2/3): context retrieved:{context}')
     # get answer from model with engineered prompt
     messages = engineer_prompt(input, context)
@@ -226,9 +229,9 @@ def get_answer(input, df):
         error_code = e.response['error']['code']
         print(f'Please try again later. Error code: {error_code} from OpenAI')
         logging.info(f'get_answer(3/3): Unsuccessful. Error code: {error_code} from OpenAI.ChatCompletion.create()')
-        return None, constraint
+        return None, None, constraint
     logging.info(f'get_answer(3/3): Successful. Details: {json.dumps(answer)}')
-    return answer, constraint
+    return answer, citations, constraint
 
 def print_spinner():
     global spinning
@@ -265,11 +268,12 @@ def main():
         if user_input == '1':
             user_input = input('Enter a question: ')
             print_spinner()
-            answer, _ = get_answer(user_input, df)
+            answer, citations, _ = get_answer(user_input, df)
             stop_spinner()
-            sleep(0.2)
+            sleep(0.5)
             if answer:
-                print(f"\n{answer.choices[0]['message']['content']}")
+                print(f"\n\nANSWER: {answer.choices[0]['message']['content']}")
+                print(f"\nBabel looked up (doc_name - para_id):\n{citations}")
         elif user_input == '2':
             costs = calculate_cost(pd.DataFrame(read_documents()))
             print(f'Reprocess documents - reprocessing all documents would cost: {costs["est_cost_usd"]} USD')
