@@ -18,8 +18,21 @@ Babel only has two actions:
 BABEL IS STARTING...
 READY - document and embeddings loaded into memory
 SELECT ACTION: (1) Query, (2) Reprocess documents, (3) Quit: 1
-Enter a question: I'm allergic to crab what dishes should I avoid
-You should avoid Crab bee hoon, Chilli crab, Black pepper crab, Crab in Padang sauce, and Oyster sauce crab.
+Enter a question: what are some soup dishes?
+
+ANSWER: Some soup dishes include beef noodle soup, banmian, sliced fish soup, fish soup bee hoon, soto ayam, soto, and cheng tng.
+
+SOURCES (doc_name - para_id):
+Beef noodle soup - 0ccd14f43e28405b955f03d798afac25
+Banmian - 0b597d55af8b4090bcc33681983966d4
+Sliced fish soup - f8e3d4c153534d66a4d84a664fa8a6c2
+Fish soup bee hoon - c5033658552643dea00ef229bd2f4284
+Beef noodle soup - 5f020efdeb93434b8599bee20e4857e4
+Soto ayam - 45fef2a1395f4dd1b0ccbeb1fabd5b0a
+Banmian - 5478c508945e4002bc186b023511d5e5
+Soto (food) - c7ff33a2b1de4d2fb9d4ecf4a6114dde
+Cheng tng - ccb567271f2e42d292ae52489552ea91
+Beef noodle soup - 199dafe713204f4e82a81bb32f43e1bd
 ```
 By default, Babel uses a toy dataset loaded in the `documents` folder. This dataset contains wikipedia pages about[ Singaporean cuisine](https://en.wikipedia.org/wiki/List_of_Singaporean_dishes). Therefore, Babel will only be able to answer questions related to Singaporean cuisine, specifically those that are described in the documents.
 
@@ -33,6 +46,7 @@ Pre-requisites:
 - Your own documents in txt format (store these in `documents/`)
 
 Steps:
+
 Clone this repo.
 Create a virtual environment and install requirements. If there are any issues with the installation, please update pip and try again.
 ```

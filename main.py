@@ -273,7 +273,7 @@ def main():
             sleep(0.5)
             if answer:
                 print(f"\n\nANSWER: {answer.choices[0]['message']['content']}")
-                print(f"\nBabel looked up (doc_name - para_id):\n{citations}")
+                print(f"\nSOURCES (doc_name - para_id):\n{citations}")
         elif user_input == '2':
             costs = calculate_cost(pd.DataFrame(read_documents()))
             print(f'Reprocess documents - reprocessing all documents would cost: {costs["est_cost_usd"]} USD')
