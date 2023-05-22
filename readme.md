@@ -1,9 +1,9 @@
 
-# Babel - Q&A from a set of documents
+# Babel - Q&A bot with a document library
 
-Babel is a simple CLI tool to answer questions using content from a document database. If there is no content in the documents that is relevant to the query, no response is generated (to limit the risk of hallucination).
+Babel is a simple Q&A chatbot that generates a response using relevant information from a document library. Users provide their own documents and ask questions about information in the library. Babel responds with knowledge from the library and avoids answering questions that are not related to the library. 
 
-It is not intended for production use, but is a proof of concept to test a Large Language Model (LLM) with Retrieval Augmented Generation (RAG).
+It is not intended for production use, but is a proof of concept to use a Large Language Model (LLM) with [Retrieval-Augmented Generation (RAG)](https://arxiv.org/abs/2005.11401).
 
 _"Perhaps my old age and fearfulness deceive me, but I suspect that the human species -- the unique species -- is about to be extinguished, but the Library will endure: illuminated, solitary, infinite, perfectly motionless, equipped with precious volumes, useless, incorruptible, secret.”_
 ― Jorge Luis Borges, The Library of Babel
@@ -11,8 +11,8 @@ _"Perhaps my old age and fearfulness deceive me, but I suspect that the human sp
 # Usage
 
 Babel only has two actions:
-1. Query - Ask a question and get an answer from the content of the documents.
-2. Reprocess documents - Re-process the documents to update the embeddings if the content has changed.
+1. Query - Ask a question and get an answer using information from the document library.
+2. Reprocess documents - Re-process the documents to update the embeddings database if the content has changed.
 
 ```
 BABEL IS STARTING...
@@ -21,19 +21,20 @@ SELECT ACTION: (1) Query, (2) Reprocess documents, (3) Quit: 1
 Enter a question: I'm allergic to crab what dishes should I avoid
 You should avoid Crab bee hoon, Chilli crab, Black pepper crab, Crab in Padang sauce, and Oyster sauce crab.
 ```
+By default, Babel uses a toy dataset loaded in the `documents` folder. This dataset contains wikipedia pages about[ Singaporean cuisine](https://en.wikipedia.org/wiki/List_of_Singaporean_dishes). Therefore, Babel will only be able to answer questions related to Singaporean cuisine, specifically those that are described in the documents.
+
+The user can provide easily load their own documents to create a document library specific to their use case. Once loaded, start Babel and use `(2) Reprocess documents` to generate the embeddings database for the documents. This only needs to be done once unless the content of the documents change.
 
 # Setup
 
 Pre-requisites:
 - Python 3.9
 - Your OpenAI API key (store this in `secrets/keys.json`)
-- Your own documents* 
-    
-_*A toy dataset is provided in the `documents` folder. This dataset contains wikipedia pages about[ Singaporean cuisine](https://en.wikipedia.org/wiki/List_of_Singaporean_dishes). In terms of formatting, these should be simple txt files that can be stored in a nested folder structure._
+- Your own documents in txt format (store these in `documents/`)
 
 Steps:
 
-Create a virtual environment and install requirements. If there are any issues with the installation, please try updating pip and try again.
+Create a virtual environment and install requirements. If there are any issues with the installation, please update pip and try again.
 ```
 python -m venv venv_babel
 venv_babel\Scripts\activate
@@ -50,26 +51,26 @@ venv_babel\Scripts\python.exe main.py
 
 The following sections provide more details on the technical aspects of Babel and how it can be improved for your own use cases.
 
-### Document types and formats
-Babel only supports simple txt files. The `read_documents()` function in `main.py` can be modified to support other file types.
+## Document types and formats
+The `read_documents()` function only supports simple txt files. This fucntion can be modified to support other file types like .doc, .pdf, .html, etc. 
 
-### Chunking algorithm
-Babel uses a simple chunking algorithm in `fragment_doc()` to split the documents into chunks with overlap. Depending on your document, it may be more appropriate to chunk the document by sections or clauses. This ensures that the chunk is more self-contained and the embeddings generated are more relevant to the content of the chunk.
+## Chunking algorithm
+The `fragment_doc()` function uses a simple chunking algorithm to split the documents into chunks with overlap. Depending on your document, it may be more appropriate to chunk the document by sections or clauses. This ensures that the chunk is properly self-contained and the embeddings generated are more relevant to the content of the chunk.
 
-### Modifying chunked text
-Chunks can be further modified to improve the quality of the embeddings generated. For example, you may want to remove the section headers or other text that is not relevant to the content of the chunk. This can be done in `fragment_doc()` or `enrich_text()`. A data sanitisation step can also be added to remove sensitive information if necessary. A chunk header can also be added to the chunk to provide more context before embedding generation (if for e.g. the subject is not mentioned in the chunk but is relevant to the context of the chunk).
+## Modifying chunked text
+Chunks can be pre-processed to improve the quality of the embeddings generated. For example, you may want to remove the section headers or other text that is not relevant to the content of the chunk. This can be done in `enrich_text()`. A data sanitisation step can also be added to remove sensitive information if necessary. A chunk header can also be added to the chunk to provide more context before embedding generation (if for e.g. the subject is not mentioned in the chunk but is relevant to the context of the chunk).
 
-### Embedding generation
-The `get_embedding()` function in `main.py` can be modified to use a different model. There are embedding models that outperform openAI's "text-embedding-ada-002". These are highly dependent on the use case and the quality of the documents. Hosting a model locally may also be more cost effective if you are generating a large number of embeddings.
+## Embedding generation
+The `get_embedding()` function can be modified to use a different model. There are embedding models that outperform openAI's "text-embedding-ada-002". These are highly dependent on the use case and the quality of the documents. Hosting an embedding model locally may be more cost effective if you are generating a large number of embeddings where as embedding via API calls may be more convenient for a smaller numbers of embeddings.
 
-### Vector similarity
+## Vector similarity
 The `nearest_neighbors()` function utilizes cosine similarity to find the most similar embeddings. It is a brute force approach that doesn't rely on any indexing. You may wish to use a specialized vector database that can implement a faster approximate nearest neighbor search. This is especially important if you are generating a large number of embeddings.
 
-### Prompt engineering
-The `engineer_prompt()` function contains the logic to fuse retrieved context to the original user_input. Depending on the use case and the quality of the documents, you may wish to modify this function to improve the quality of the response.
+## Prompt engineering
+The `engineer_prompt()` function contains the logic to fuse retrieved context to the original user_input.It also provides additional prompting to direct the LLM. Depending on the use case, you may wish to modify this function to improve the quality of the response.
 
-### Content citation
-By default, Babel doesn't return the source of the content. But this feature can be added by modifying the `get_answer()` function in `main.py`. The context is already retrieved as a full dataframe in `nearest_neighbors()` with all the necessary information to generate the citation.
+## Content citation
+By default, Babel doesn't return the source of the content. But this feature can be added by modifying the `get_answer()` function. The context is already retrieved as a full dataframe in `nearest_neighbors()` with all the necessary information to generate the citation.
 
 # Disclaimer
 
