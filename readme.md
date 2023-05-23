@@ -77,14 +77,14 @@ Chunks can be pre-processed to improve the quality of the embeddings generated. 
 ## Embedding generation
 The `get_embedding()` function can be modified to use a different model. There are embedding models that outperform openAI's "text-embedding-ada-002". These are highly dependent on the use case and the quality of the documents. Hosting an embedding model locally may be more cost effective if you are generating a large number of embeddings where as embedding via API calls may be more convenient for a smaller numbers of embeddings.
 
+## Recovery from API errors
+The `process_documents()` function has a single retry mechanism to recover from API errors. A better implementation would be to record the integrity of each row in the database and retry only the rows that failed.
+
 ## Vector similarity
 The `nearest_neighbors()` function utilizes cosine similarity to find the most similar embeddings. It is a brute force approach that doesn't rely on any indexing. You may wish to use a specialized vector database that can implement a faster approximate nearest neighbor search. This is especially important if you are generating a large number of embeddings.
 
 ## Prompt engineering
 The `engineer_prompt()` function contains the logic to fuse retrieved context to the original user_input.It also provides additional prompting to direct the LLM. Depending on the use case, you may wish to modify this function to improve the quality of the response.
-
-## Content citation
-By default, Babel doesn't return the source of the content. But this feature can be added by modifying the `get_answer()` function. The context is already retrieved as a full dataframe in `nearest_neighbors()` with all the necessary information to generate the citation.
 
 # Disclaimer
 
